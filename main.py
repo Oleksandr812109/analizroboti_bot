@@ -1,3 +1,6 @@
+import os
+from dotenv import load_dotenv
+load_dotenv()
 import logging
 from binance_api import BinanceAPI
 from data_processor import process_orders
@@ -16,8 +19,8 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 # ======= НАЛАШТУВАННЯ =======
 
 # Email config (заповніть свої значення!)
-FROM_EMAIL = "your@gmail.com"  # Gmail-відправник
-APP_PASSWORD = "your_app_password"  # App password Gmail
+FROM_EMAIL = "oleksandr.agro8@gmail.com"  # Gmail-відправник
+APP_PASSWORD = "nbbs mxpw uwuo kbde"  # App password Gmail
 TO_EMAIL = "oleksandr.agro81@gmail.com"  # Отримувач
 
 # Звіт
@@ -37,7 +40,7 @@ GSHEETS_WORKSHEET_NAME = "Futures Trades Report"
 GSHEETS_CREDS_PATH = "service_account.json"
 
 # Telegram бот
-TELEGRAM_BOT_TOKEN = "your_telegram_bot_token"  # <-- Вставте свій токен
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")  # <-- Вставте свій токен
 
 # ============================
 
