@@ -3,3 +3,4 @@ openpyxl
 gspread
 gspread-dataframe
 binance
+python-binance
