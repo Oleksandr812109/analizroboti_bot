@@ -1,88 +1,62 @@
-from config import load_config, LOG_LEVEL, USE_TESTNET
+import logging
 from binance_api import BinanceAPI
 from data_processor import process_orders
 from excel_exporter import export_to_excel
-import logging
-import os
-from datetime import datetime
-
-def setup_logging():
-    if not os.path.exists("logs"):
-        os.makedirs("logs")
-    log_filename = f"logs/bot_{datetime.now().strftime('%Y-%m-%d')}.log"
-    logging.basicConfig(
-        filename=log_filename,
-        level=LOG_LEVEL,
-        format="%(asctime)s %(levelname)s: %(message)s",
-    )
-    # Логи також у консоль
-    console = logging.StreamHandler()
-    console.setLevel(LOG_LEVEL)
-    formatter = logging.Formatter("%(asctime)s %(levelname)s: %(message)s")
-    console.setFormatter(formatter)
-    logging.getLogger().addHandler(console)
-    # Мінімум логів від сторонніх бібліотек
-    logging.getLogger("urllib3").setLevel(logging.WARNING)
-    logging.getLogger("binance").setLevel(logging.WARNING)
+from google_sheets_exporter import export_to_gsheets
 
 def main():
-    setup_logging()
-    logging.info("Binance Futures Order Tracker: запуск...")
+    # 1. Налаштування логування
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s"
+    )
 
-    # 1. Завантаження конфігурації
-    config = load_config()
-    api_key = config.get("BINANCE_API_KEY")
-    api_secret = config.get("BINANCE_API_SECRET")
+    # 2. Введіть свої ключі Binance API
+    api_key = "d819d92b03fa3d8c61ff4c4835908ec4afde53fc64ac6df6235c5b332fbef930"
+    api_secret = "007055837e544dfb38e99582a2b00626164602a168aa939eb5943adb293bf727"
+    use_testnet = True  # Змініть на False для реального акаунту
 
-    if not api_key or not api_secret:
-        logging.critical("API_KEY або API_SECRET не знайдено в конфігурації. Перевірте config.py або .env.")
-        return
+    # 3. Параметри експорту
+    export_to_excel_flag = True
+    export_to_gsheets_flag = False
 
-    # 2. Ініціалізація Binance API (з урахуванням testnet)
-    try:
-        binance = BinanceAPI(api_key, api_secret, testnet=USE_TESTNET)
-        logging.info(f"Binance API ініціалізовано (testnet={USE_TESTNET})")
-    except Exception as e:
-        logging.critical(f"Помилка ініціалізації Binance API: {e}")
-        return
+    excel_filename = "Futures_Trades_Report.xlsx"
+    excel_sheet_name = "Futures Trades Report"
 
-    # 3. Збір даних про ордери та позиції
-    try:
-        logging.info("Збір історії ф'ючерсних угод...")
-        orders = binance.get_futures_filled_orders()
-    except Exception as e:
-        logging.error(f"Помилка при отриманні історії угод: {e}")
-        return
+    gsheets_spreadsheet_name = "Binance Futures Trades"  # Назва Google таблиці
+    gsheets_worksheet_name = "Futures Trades Report"
+    gsheets_creds_path = "service_account.json"
 
-    try:
-        logging.info("Збір відкритих позицій...")
-        positions = binance.get_futures_open_positions()
-    except Exception as e:
-        logging.error(f"Помилка при отриманні позицій: {e}")
-        return
+    # 4. Ініціалізація Binance API
+    binance = BinanceAPI(api_key, api_secret, testnet=use_testnet)
 
-    # 4. Перевірка наявності даних
-    if not orders and not positions:
-        logging.warning("Немає даних для обробки: не знайдено ні ордерів, ні позицій.")
-        return
+    # 5. Отримати закриті угоди (userTrades)
+    orders = binance.get_futures_filled_orders()
     if not orders:
-        logging.info("Не знайдено виконаних ордерів (filled orders).")
-    if not positions:
-        logging.info("Не знайдено відкритих позицій.")
-
-    # 5. Обробка даних
-    processed_data = process_orders(orders, positions)
-    if not processed_data:
-        logging.warning("Після обробки немає даних для експорту. Завершення роботи.")
+        logging.info("Не знайдено жодної угоди для обробки.")
         return
 
-    # 6. Експорт у Excel
-    filename = f"Binance_Futures_Trades_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.xlsx"
-    try:
-        export_to_excel(processed_data, filename)
-        logging.info(f"Звіт збережено у {filename}")
-    except Exception as e:
-        logging.error(f"Помилка при експорті у Excel: {e}")
+    # 6. Обробити дані
+    processed_df = process_orders(orders)
+
+    # 7. Експорт у Excel
+    if export_to_excel_flag:
+        export_to_excel(processed_df, excel_filename, sheet_name=excel_sheet_name)
+
+    # 8. Експорт у Google Sheets
+    if export_to_gsheets_flag:
+        try:
+            export_to_gsheets(
+                processed_df,
+                spreadsheet_name=gsheets_spreadsheet_name,
+                worksheet_name=gsheets_worksheet_name,
+                creds_json_path=gsheets_creds_path,
+                clear_existing_data=True
+            )
+        except Exception as e:
+            logging.error("Помилка при експорті у Google Sheets. Перевірте логи для деталей.")
+
+    logging.info("Завершено!")
 
 if __name__ == "__main__":
     main()
